@@ -1,25 +1,16 @@
-#include "cryptoEngine.h"
+#include "CryptoEngine.h"
 #include "mbed.h"
 #include <cstdint>
 #include "pkcs5.h"
 
 /*
-  CryptoEngine(uint8_t*) initializes class and sets password.
+  CryptoEngine(void) initializes class.
   It also initializes True Random Number Generator.
 */
-CryptoEngine::CryptoEngine(uint8_t* password)
+CryptoEngine::CryptoEngine(void)
 {
-  for(auto i = 0; i < MASTER_PASSWORD_LENGTH; i++)
-  {
-    masterPassword[i] = password[i];
-  }
-
   // Initialize TRNG
   __HAL_RCC_RNG_CLK_ENABLE();
-  RCC_PeriphCLKInitTypeDef periphClkInitStruct;
-  periphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_RNG;
-  periphClkInitStruct.RngClockSelection = RCC_RNGCLKSOURCE_PLL;
-  HAL_RCCEx_PeriphCLKConfig(&periphClkInitStruct);
 }
 
 /*
@@ -104,7 +95,7 @@ uint8_t CryptoEngine::generateRandomSalt(uint8_t *output)
 }
 
 /*
-  uint8_t generateAesKeyAndIvV(void) generates AES Key (256 byte) and IV (16 Byte) with PBKDF2-HMAC algorithm.
+  uint8_t generateAesKeyAndIvV(void) generates AES Key (128 byte) and IV (16 Byte) with PBKDF2-HMAC algorithm.
 
   Error Return Values:
     (1) -> SHA-256 is not available
@@ -130,32 +121,29 @@ uint8_t CryptoEngine::generateAesKeyAndIV(void)
     return 2;
   }
 
-  uint8_t aesKey[256];
-  mbedtls_pkcs5_pbkdf2_hmac(&sha256_context, masterPassword, 32, generatedSalt, 16, 512, 256, generatedAesKey);
-
-  uint8_t aesIV[16];
+  mbedtls_pkcs5_pbkdf2_hmac(&sha256_context, masterPassword, 32, generatedSalt, 16, 512, 128, generatedAesKey);
   mbedtls_pkcs5_pbkdf2_hmac(&sha256_context, masterPassword, 32, generatedSalt, 16, 512, 16, generatedAesIV);
 
   return 0;
 }
 
 /*
-  uint8_t cryptWithAes256(void) en- and decrypting function. Uses AES-256bit algorithm.
+  uint8_t cryptWithAesCBC(void) en- or decrypts a 128 byte array using AES-CBC algorithm.
 
   Error Return Values:
     (1) -> Parameter error
 */
-uint8_t CryptoEngine::cryptWithAes256(uint8_t* input, uint8_t* output, int mode)
+uint8_t CryptoEngine::cryptWithAesCBC(uint8_t* input, uint8_t* output, int mode)
 {
   mbedtls_aes_context aes_context;
   
   switch(mode)
   {
     case MBEDTLS_AES_ENCRYPT:
-      mbedtls_aes_setkey_enc(&aes_context, generatedAesKey, 256);
+      mbedtls_aes_setkey_enc(&aes_context, generatedAesKey, 128);
       break;
     case MBEDTLS_AES_DECRYPT:
-      mbedtls_aes_setkey_dec(&aes_context, generatedAesKey, 256);
+      mbedtls_aes_setkey_dec(&aes_context, generatedAesKey, 128);
       break;
     default:
       return 1;
@@ -167,7 +155,7 @@ uint8_t CryptoEngine::cryptWithAes256(uint8_t* input, uint8_t* output, int mode)
     iv[i] = generatedAesIV[i];
   }
 
-  mbedtls_aes_crypt_cbc(&aes_context, mode, 256, iv, input, output);
+  mbedtls_aes_crypt_cbc(&aes_context, mode, 128, iv, input, output);
 
   return 0;
 }
@@ -180,5 +168,16 @@ void CryptoEngine::setSalt(uint8_t* salt)
   for(auto i = 0; i < MAX_SALT_LENGTH; i++)
   {
     generatedSalt[i] = salt[i];
+  }
+}
+
+/*
+  void setMasterPassword(uint8_t*) sets the master password.
+*/
+void CryptoEngine::setMasterPassword(uint8_t* pwd)
+{
+  for(auto i = 0; i < MASTER_PASSWORD_LENGTH; i++)
+  {
+    masterPassword[i] = pwd[i];
   }
 }
