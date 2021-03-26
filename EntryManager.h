@@ -4,6 +4,9 @@
 #include <vector>
 #include <string>
 
+#ifndef ENTRY_MANAGER_H
+#define ENTRY_MANAGER_H
+
 #define DEVICE_SETTINGS_START_ADDRESS 0x00    // Start address where device settings are stored
 #define ADDRESS_TABLE_START_ADDRESS   0x1000  // Second subsector stores entry address table
 #define ENTRY_START_ADDRESS           0x2000  // Entries are stored starting at address of third subsector
@@ -24,8 +27,10 @@ class EntryManager
     void saveSalt(uint8_t* salt);
     void loadSalt(void);
     bool addEntry(const char* title, const char* usr, const char* email, const char* pwd, const char* url);
-    bool getEntry(uint16_t id, uint8_t *title, uint8_t *usr, uint8_t *email, uint8_t *pwd, uint8_t *url);
+    bool editEntry(uint16_t id, const char* title, const char* usr, const char* email, const char* pwd, const char* url);
+    bool getEntry(uint16_t id, uint8_t* title, uint8_t* usr, uint8_t* email, uint8_t* pwd, uint8_t* url);
     bool removeEntry(uint16_t id);
+    uint16_t getEntryCount(void);
     vector<string> getEntriesTitleInfo(void);
     
   private:
@@ -35,8 +40,9 @@ class EntryManager
     static uint8_t addressTable[MT25Q_SUBSECTOR_SIZE];
     uint8_t deviceSettings[MT25Q_PAGE_SIZE];
     
-    uint16_t getEntryCount(void);
     uint16_t getUniqueId(void);
     uint8_t getStringLength(const char* str, uint8_t maxLength);
     void setEntryCount(uint16_t entryCount);
 };
+
+#endif

@@ -240,6 +240,75 @@ bool EntryManager::getEntry(uint16_t id, uint8_t *title, uint8_t *usr, uint8_t *
 }
 
 /*
+  bool editEntry(uint16_t, const char*, const char*, const char*, const char*, const char*) edits entry at given id.
+*/
+bool EntryManager::editEntry(uint16_t id, const char* title, const char* usr, const char* email, const char* pwd, const char* url)
+{
+  if(getEntryCount() == 0)
+  {
+    printf("[Error] No entry found!\n");
+    return false;
+  }
+
+  uint8_t tmpPage[MT25Q_PAGE_SIZE];
+  memset(tmpPage, 0xFF, MT25Q_PAGE_SIZE);
+
+  uint32_t entryAddress = ENTRY_START_ADDRESS;
+  bool entryFound = false;
+  for(auto i = 0; i < MAX_ENTRY_COUNT; i++)
+  {
+    uint16_t foundId = (addressTable[i * 2] << 8) | addressTable[(i * 2) + 1];
+
+    if(foundId == id)
+    {
+      entryAddress = ENTRY_START_ADDRESS + MT25Q_PAGE_SIZE * i;
+      tmpPage[0] = (id & 0xFF00) >> 8;
+      tmpPage[1] = id & 0xFF;
+      entryFound = true;
+      break;
+    }
+  }
+
+  if(!entryFound)
+  {
+    printf("[Error] Entry with given id does not exist!\n");
+    return false;
+  }
+
+  /*
+    Entries are saved in 256 byte pages in following format:
+
+    [ID 2 bytes] [TITLE 16 bytes] [URL 24 bytes] [Not Defined 86 bytes] (First 128 bytes - unencrypted)
+    [USERNAME 32 bytes] [EMAIL 64 bytes] [PASSWORD 32 bytes]            (Last 128 bytes - encrypted with AES)
+  */
+
+  // [TITLE 16 bytes]
+  copy_n(title, getStringLength(title, ENTRY_TITLE_SIZE), &tmpPage[2]);
+
+  // [URL 24 bytes]
+  copy_n(url, getStringLength(url, ENTRY_URL_SIZE), &tmpPage[2 + ENTRY_TITLE_SIZE]);
+
+  // [USERNAME 32 bytes]
+  copy_n(usr, getStringLength(usr, ENTRY_USERNAME_SIZE), &tmpPage[128]);
+
+  // [EMAIL 64 bytes]
+  copy_n(email, getStringLength(email, ENTRY_EMAIL_SIZE), &tmpPage[128 + ENTRY_USERNAME_SIZE]);
+
+  // [PASSWORD 32 bytes]
+  copy_n(pwd, getStringLength(pwd, ENTRY_PASSWORD_SIZE), &tmpPage[128 + ENTRY_USERNAME_SIZE + ENTRY_EMAIL_SIZE]);
+
+  uint8_t encData[128];
+  cryptoEngine->cryptWithAesCBC(&tmpPage[128], encData, MBEDTLS_AES_ENCRYPT);
+
+  // Write encrypted Data (128 bytes) back to tmpPage
+  copy_n(encData, 128, &tmpPage[128]);
+
+  flashMemory->updateBytes(entryAddress, tmpPage);
+
+  return true;
+}
+
+/*
   bool removeEntry(uint16_t) removes entry by deleting id in address table.
 */
 bool EntryManager::removeEntry(uint16_t id)
@@ -250,6 +319,7 @@ bool EntryManager::removeEntry(uint16_t id)
     return false;
   }
 
+  bool idFound = false;
   for(auto i = 0; i < MAX_ENTRY_COUNT; i++)
   {
     uint16_t foundId = (addressTable[i * 2] << 8) | addressTable[(i * 2) + 1];
@@ -259,8 +329,15 @@ bool EntryManager::removeEntry(uint16_t id)
       addressTable[i * 2] = 0xFF;
       addressTable[(i * 2) + 1] = 0xFF;
       usedIds.erase(find(usedIds.begin(), usedIds.end(), foundId));
+      idFound = true;
       break;
     }
+  }
+
+  if(!idFound)
+  {
+    printf("[Error] Entry with given id does not exist!\n");
+    return false;
   }
 
   setEntryCount(getEntryCount() - 1);
