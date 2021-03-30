@@ -1,10 +1,11 @@
 #include <cstdint>
 
-#define MASTER_PASSWORD_LENGTH  32
+#define MASTER_PASSWORD_LENGTH  6
 #define MAX_SALT_LENGTH         16
 
 #ifndef CRYPTO_ENGINE_H
 #define CRYPTO_ENGINE_H
+
 class CryptoEngine
 {
   public:
@@ -22,4 +23,5 @@ class CryptoEngine
     uint8_t generatedAesIV[16];
     uint8_t generatedSalt[16];
 };
+
 #endif

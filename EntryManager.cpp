@@ -2,9 +2,11 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <functional>
 #include <vector>
 
 uint8_t EntryManager::addressTable[];
+vector<tuple<uint16_t, string>> EntryManager::credentialInfo;
 
 /*
   EntryManager(MT25Q*, CryptoEngine*) initializes class.
@@ -16,8 +18,18 @@ EntryManager::EntryManager(MT25Q* flashMemory, CryptoEngine* cryptoEngine)
   this->flashMemory = flashMemory;
   this->cryptoEngine = cryptoEngine;
 
+  reloadSettings();
+}
+
+/*
+  void reloadSettings(void) reads settings from memory.
+*/
+void EntryManager::reloadSettings(void)
+{
   flashMemory->readBytes(DEVICE_SETTINGS_START_ADDRESS, deviceSettings, MT25Q_PAGE_SIZE);
   flashMemory->readBytes(ADDRESS_TABLE_START_ADDRESS, addressTable, MT25Q_SUBSECTOR_SIZE);
+
+  usedIds.clear();
 
   for(auto i = 0; i < MAX_ENTRY_COUNT; i++)
   {
@@ -363,9 +375,9 @@ uint16_t EntryManager::getUniqueId(void)
 /*
   vector<string> getEntriesTitleInfo(void) returns all saved entry titles.
 */
-vector<string> EntryManager::getEntriesTitleInfo(void)
+vector<tuple<uint16_t, string>> EntryManager::getEntriesTitleInfo(void)
 {
-  vector<string> entriesTitleInfo;
+  vector<tuple<uint16_t, string>> entriesTitleInfo;
   
   for(auto i = 0; i < MAX_ENTRY_COUNT; i++)
   {
@@ -376,7 +388,9 @@ vector<string> EntryManager::getEntriesTitleInfo(void)
       uint8_t title[ENTRY_TITLE_SIZE];
       getEntry(foundId, title, NULL, NULL, NULL, NULL);
 
-      entriesTitleInfo.push_back(string((char*)title));
+      entriesTitleInfo.push_back(tuple<uint16_t, string>(foundId, string((char*)title)));
+
+      printf("[INFO] Account found: %X %s\n", foundId, string((char*)title).c_str());
     }
   }
 
@@ -400,4 +414,54 @@ void EntryManager::loadSalt(void)
   uint8_t salt[MAX_SALT_LENGTH];
   copy_n(&deviceSettings[SALT_START_ADDRESS], MAX_SALT_LENGTH, salt);
   cryptoEngine->setSalt(salt);
+}
+
+/*
+  bool needsToBeInitialized(void) if first byte of memory is a specific value (0xFF) then device needs to be initialized first.
+*/
+bool EntryManager::needsToBeInitialized(void)
+{
+  return deviceSettings[0] != 0x01 ? true : false;
+}
+
+/*
+  void savePassword(uint8_t*) hashes password and writes saves it on the memory.
+*/
+void EntryManager::savePassword(uint8_t *pwd)
+{
+  uint8_t hashedPwd[32];
+  cryptoEngine->hashWithSha256(pwd, hashedPwd);
+
+  copy_n(hashedPwd, 32, &deviceSettings[HASHED_PWD_START_ADDRESS]);
+}
+
+/*
+  bool comparePassword(uint8_t*) compares password with hashed master password from memory.
+
+  Returns:
+    true:   When password is the same as the saved master password
+    false:  When password is not the same as the saved master password
+*/
+bool EntryManager::comparePassword(uint8_t *pwd)
+{
+  uint8_t hashedPwd[32];
+  cryptoEngine->hashWithSha256(pwd, hashedPwd);
+
+  for(int i = 0; i < 32; i++)
+  {
+    if(hashedPwd[i] != deviceSettings[HASHED_PWD_START_ADDRESS + i])
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+/*
+  void setAsInitialized(void) sets first byte of device settings page to 0x01 which means that device
+  was initialized.
+*/
+void EntryManager::setAsInitialized(void)
+{
+  deviceSettings[0] = 0x01;
 }

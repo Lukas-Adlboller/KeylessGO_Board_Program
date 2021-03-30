@@ -1,30 +1,33 @@
 #include "mbed.h"
+#include "Window.h"
+#include "EntryManager.h"
 #include "BoardProgram.h"
 #include "KeylessComm_STM32F746.h"
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include <vector>
-
-void PrintArray(uint8_t* data)
-{
-  printf("Array: \n");
-  for(int i = 0; i < 128; i++)
-  {
-    printf("%X ", data[i]);
-  }
-  printf("\n");
-}
 
 int main()
 {
   printf("\n\n----------------------------------\n");
-  MT25Q flashMemory(PA_7, PA_6, PA_5, D8);
+  
+  BoardProgram boardProg;
+  if(boardProg.initialize() == 0)
+  {
+    boardProg.run();
+  }
+  
+
+  
+  /*MT25Q flashMemory(PE_6, PE_5, PE_12, D3);
   CryptoEngine cryptoEngine;
 
   flashMemory.eraseChip();
 
-  uint8_t masterPwd[MASTER_PASSWORD_LENGTH] = {"UltiPwd1234!"};
+  uint8_t masterPwd[MASTER_PASSWORD_LENGTH] = {"12345"};
   uint8_t genSalt[MAX_SALT_LENGTH];
 
   // Initialize Crypto Engine
@@ -45,18 +48,13 @@ int main()
   {
     boardCommunication.process();
   }
-  /*
+
   entryManager.removeEntry(0x00);
   entryManager.removeEntry(0x02);
 
   entryManager.addEntry("YouTube", "XImSyntax", "email@gmail.com", "0000", "www.youtube.com");
 
-  vector<string> titles = entryManager.getEntriesTitleInfo();
-
-  for(int i = 0; i < titles.size(); i++)
-  {
-    printf("Entry: %s\n", titles.at(i).c_str());
-  }
+  
   uint8_t title[ENTRY_TITLE_SIZE];
   uint8_t usr[ENTRY_USERNAME_SIZE];
   uint8_t url[ENTRY_URL_SIZE];
@@ -64,10 +62,10 @@ int main()
   uint8_t pwd[ENTRY_PASSWORD_SIZE];
 
   entryManager.getEntry(0x01, title, usr, email, pwd, url);
+  
+
+  printf("TITLE: %s\nUSR: %s\nURL: %s\nEMAIL: %s\nPWD: %s\n", title, usr, url, email, pwd);
   */
-
-  //printf("TITLE: %s\nUSR: %s\nURL: %s\nEMAIL: %s\nPWD: %s\n", title, usr, url, email, pwd);
-
   //uint8_t data[256];
   //flashMemory.readBytes(DEVICE_SETTINGS_START_ADDRESS, data, MT25Q_PAGE_SIZE);
   //PrintArray(data);

@@ -74,6 +74,7 @@
 #define PURPLE              0x780F
 #define OLIVE               0x7BE0
 #define LIGHT_GRAY          0xC618
+#define GRAY                0xA514
 #define DARK_GRAY           0x7BEF
 #define BLUE                0x001F
 #define GREEN               0x07E0

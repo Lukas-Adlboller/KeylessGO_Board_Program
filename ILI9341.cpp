@@ -164,7 +164,7 @@ static const unsigned char font[] =
 void ILI9341::initialize(void)
 {
   spi.format(8, 3);
-  spi.frequency(10000000);
+  spi.frequency(40000000);
   chipSelect = 1;
   dataCommand = 1;
   

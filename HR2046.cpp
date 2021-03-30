@@ -46,13 +46,13 @@ void HR2046::readData(uint16_t *x, uint16_t *y, uint16_t *z)
       - Top Left:       X: 4000  Y: 3945
       - Top Right:      X: 385   Y: 3945
       - Bottom Left:    X: 4000  Y: 305
-      - Bottom Right:   X: 385   Y: 305 
+      - Bottom Right:   X: 385   Y: 305
 
-    Rotation 3:   dY = 3615   dX = 3585
-      - Top Left:       X: 3905  Y: 95
-      - Top Right:      X: 3905  Y: 3710
-      - Bottom Left:    X: 320   Y: 95
-      - Bottom Right:   X: 320   Y: 3710
+    Rotation 3:   dY = 3624   dX = 3604
+      - Top Left:       X: 3955  Y: 191
+      - Top Right:      X: 3955  Y: 3815
+      - Bottom Left:    X: 351   Y: 191
+      - Bottom Right:   X: 351   Y: 3815
   */
   switch(rotation)
   {
@@ -69,14 +69,16 @@ void HR2046::readData(uint16_t *x, uint16_t *y, uint16_t *z)
       *y = (yraw - 305) / (3640 / 320);
       break;
     case 3:
-      *x = (xraw - 320) / (3585 / 320);
-      *y = (yraw - 95) / (3615 / 240);
+      *x = (xraw - 351) / (3604 / 320);
+      *y = (yraw - 191) / (3624 / 240);
       break;
     default:
       *x = xraw;
       *y = yraw;
       break;
   }
+
+  printf("[Info] Raw X: %d Y: %d | Point: X: %d Y: %d\n", xraw, yraw, *x, *y);
 }
 
 void HR2046::setRotation(uint8_t rot)

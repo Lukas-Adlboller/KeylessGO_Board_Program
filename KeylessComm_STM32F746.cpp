@@ -207,6 +207,8 @@ void KeylessCom::processCommand()
 
     if(entryManager->addEntry(Title, Uname, Email, Passwd, Url)) Serial.write(&ACK, 1);
     else Serial.write(&NACK, 1);
+
+    EntryManager::credentialInfo = entryManager->getEntriesTitleInfo();
   }
 
   else if(commandBuffer[0] == COMM_REM_ACC)
@@ -217,6 +219,8 @@ void KeylessCom::processCommand()
     
     if(entryManager->removeEntry(id)) Serial.write(&ACK, 1);
     else Serial.write(&NACK, 1);
+
+    EntryManager::credentialInfo = entryManager->getEntriesTitleInfo();
   }
 
   else if(commandBuffer[0] == COMM_EDIT_ACC)
@@ -277,6 +281,8 @@ void KeylessCom::processCommand()
 
     if(entryManager->editEntry(id, Title, Uname, Email, Passwd, Url)) Serial.write(&ACK, 1);
     else Serial.write(&NACK, 1);
+
+    EntryManager::credentialInfo = entryManager->getEntriesTitleInfo();
   }
 }
 

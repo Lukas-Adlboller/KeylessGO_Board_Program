@@ -7,7 +7,7 @@ uint8_t MT25Q::sectorBuffer[];
 MT25Q::MT25Q(PinName mosi, PinName miso, PinName clk, PinName cs) : spi(mosi, miso, clk), chipSelect(cs)
 {
   spi.format(8);
-  spi.frequency(10000000);
+  spi.frequency(40000000);
 
   // Code for further initizialation of device
 }
