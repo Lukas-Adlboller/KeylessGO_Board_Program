@@ -28,17 +28,7 @@ void KeylessCom::process()
           break;
 
         case COMM_GET_ACC:
-          commandBuffer[commandBufferIdx] = serialBuffer;
-          commandBufferIdx++;
-          ignoreCommandIdx = 2;
-          break;
-
         case COMM_REM_ACC:
-          commandBuffer[commandBufferIdx] = serialBuffer;
-          commandBufferIdx++;
-          ignoreCommandIdx = 2;
-          break;
-
         case COMM_EDIT_ACC:
           commandBuffer[commandBufferIdx] = serialBuffer;
           commandBufferIdx++;
@@ -76,26 +66,13 @@ void KeylessCom::process()
 
 void KeylessCom::processCommand()
 {
-  if(commandBuffer[0] == COMM_AUTH_BEGIN)
+  if(commandBuffer[0] == COMM_AUTH_BEGIN 
+  || commandBuffer[0] == COMM_AUTH_CODE 
+  || commandBuffer[0] == COMM_AUTH_AUTO 
+  || commandBuffer[0] == COMM_DISCONNECT)
   {
     Serial.write(&NACK, 1);
   }
-
-  else if(commandBuffer[0] == COMM_AUTH_CODE)
-  {
-    Serial.write(&NACK, 1);
-  }
-
-  else if(commandBuffer[0] == COMM_AUTH_AUTO)
-  {
-    Serial.write(&NACK, 1);
-  }
-
-  else if(commandBuffer[0] == COMM_DISCONNECT)
-  {
-    Serial.write(&NACK, 1);
-  }
-
   else if(commandBuffer[0] == COMM_GET_ACC_NUM)
   {
     uint16_t accountNumber = entryManager->getEntryCount();
@@ -115,17 +92,6 @@ void KeylessCom::processCommand()
     		printf("sendAccountNumber in getAccountNum failed with STATUS_INVALID_RESPONSE\n\n");
     		break;
     }
-
-    /*uint8_t accountNumberLSB = accountNumber & 0b0000000011111111;
-    uint8_t accountNumberMSB = (accountNumber & 0b1111111100000000) >> 8;
-    char outBuffer[5] = {
-      COMM_BEGIN,
-      COMM_SEND_ACC_NUM,
-      accountNumberMSB,
-      accountNumberLSB,
-      COMM_END
-    };
-    Serial.write(outBuffer, 5);*/
   }
 
   else if(commandBuffer[0] == COMM_GET_ACC)
