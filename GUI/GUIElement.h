@@ -7,7 +7,8 @@
 #define ARROW_UP    0x1E
 #define ARROW_DOWN  0x1F
 #define PLAY_ICON   0x10
-#define MENU_ICON   0xF0
+#define LIST_ICON   0xF0
+#define RESET_ICON  0x13
 
 #ifndef GUI_ELEMENT_H
 #define GUI_ELEMENT_H

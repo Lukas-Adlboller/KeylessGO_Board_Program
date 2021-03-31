@@ -389,8 +389,6 @@ vector<tuple<uint16_t, string>> EntryManager::getEntriesTitleInfo(void)
       getEntry(foundId, title, NULL, NULL, NULL, NULL);
 
       entriesTitleInfo.push_back(tuple<uint16_t, string>(foundId, string((char*)title)));
-
-      printf("[INFO] Account found: %X %s\n", foundId, string((char*)title).c_str());
     }
   }
 

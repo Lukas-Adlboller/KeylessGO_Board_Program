@@ -60,4 +60,5 @@ void Window::Unload(void)
 {
   uiLabels.clear();
   uiButtons.clear();
+  uiEntries.clear();
 }

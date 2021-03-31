@@ -14,13 +14,14 @@ int main()
 {
   printf("\n\n----------------------------------\n");
   
-  BoardProgram boardProg;
-  if(boardProg.initialize() == 0)
+  while(true)
   {
-    boardProg.run();
+    BoardProgram boardProg;
+    if(boardProg.initialize() == 0)
+    {
+      boardProg.run();
+    }
   }
-  
-
   
   /*MT25Q flashMemory(PE_6, PE_5, PE_12, D3);
   CryptoEngine cryptoEngine;

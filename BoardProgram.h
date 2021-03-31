@@ -9,6 +9,10 @@
 #include <cstdint>
 #include <cstdio>
 
+#define BOARD_SOFTWARE_VERSION "KeylessGo 0.2 beta"
+
+enum WindowType {CreateLogin, Login, MainWindow, ResetConfirm, LogOff};
+
 class BoardProgram
 {
   public:
@@ -18,11 +22,11 @@ class BoardProgram
     void reset(void);
 
     static Mutex threadMutex;
-    static vector<Window> programWindows;
+    static bool resetConfirmed;
+    static Window* templateWindow;
     static uint16_t scrollIndex;
     static uint8_t masterPassword[6];
-    static bool pwdSet;
-    static bool loginSuccessful;
+    static WindowType currentWindow;
 
   private:
     MT25Q flashMemory;
@@ -47,7 +51,7 @@ class BoardProgram
         tmp.SetCredentialInfo(get<0>(EntryManager::credentialInfo.at(i)), get<1>(EntryManager::credentialInfo.at(i)));
         credentialEntries.push_back(tmp);
         posY += 37;
-        printf("Entry start: %d end: %d current: %d\n", scrollIndex, entryEndIndex, i);
+        // printf("Entry start: %d end: %d current: %d\n", scrollIndex, entryEndIndex, i);
       }
 
       return credentialEntries;
@@ -62,12 +66,14 @@ class BoardProgram
     static void pinButtonMinus_onClick(GUIElement* sender)
     {
       ((Button*)sender)->elementIterator->strText[0]--;
+      printf("%X\n", ((Button*)sender)->elementIterator->strText[0]);
       ((Button*)sender)->elementIterator->Draw();
     }
 
     static void loginButton_onClick(GUIElement* sender)
     {
       vector<GUIElement>::iterator iter = ((Button*)sender)->elementIterator;
+      /*
       printf(
         "[Info] Pin is: %c %c %c %c %c %c\n", 
         (iter + 2)->strText[0], 
@@ -76,6 +82,7 @@ class BoardProgram
         (iter + 5)->strText[0], 
         (iter + 6)->strText[0], 
         (iter + 7)->strText[0]);
+      */
 
       masterPassword[0] = (iter + 2)->strText[0];
       masterPassword[1] = (iter + 3)->strText[0];
@@ -84,12 +91,13 @@ class BoardProgram
       masterPassword[4] = (iter + 6)->strText[0];
       masterPassword[5] = (iter + 7)->strText[0];
 
-      programWindows[0].loadForm = false;
+      templateWindow->loadForm = false;
     }
 
     static void createLoginButton_onClick(GUIElement* sender)
     {
       vector<GUIElement>::iterator iter = ((Button*)sender)->elementIterator;
+      /*
       printf(
         "[Info] New Pin is: %c %c %c %c %c %c\n", 
         (iter + 2)->strText[0], 
@@ -98,6 +106,7 @@ class BoardProgram
         (iter + 5)->strText[0], 
         (iter + 6)->strText[0], 
         (iter + 7)->strText[0]);
+      */
 
       masterPassword[0] = (iter + 2)->strText[0];
       masterPassword[1] = (iter + 3)->strText[0];
@@ -106,12 +115,13 @@ class BoardProgram
       masterPassword[4] = (iter + 6)->strText[0];
       masterPassword[5] = (iter + 7)->strText[0];
 
-      programWindows[1].loadForm = false;
+      templateWindow->loadForm = false;
     }
 
     static void repeatLoginButton_onClick(GUIElement* sender)
     {
       vector<GUIElement>::iterator iter = ((Button*)sender)->elementIterator;
+      /*
       printf(
         "[Info] Repeated Pin is: %c %c %c %c %c %c\n",
         (iter + 2)->strText[0], 
@@ -120,6 +130,7 @@ class BoardProgram
         (iter + 5)->strText[0], 
         (iter + 6)->strText[0], 
         (iter + 7)->strText[0]);
+      */
 
       uint8_t pwd[6];
       pwd[0] = (iter + 2)->strText[0];
@@ -139,8 +150,8 @@ class BoardProgram
         }
       }
 
-      programWindows[2].loadForm = false;
-      pwdSet = samePwd;
+      templateWindow->loadForm = false;
+      currentWindow = samePwd ? Login : CreateLogin;
     }
 
     static void loginForm_onLoad(Window* sender, ILI9341* displayDrv, HR2046* touchDrv)
@@ -257,14 +268,14 @@ class BoardProgram
       scrollIndex = scrollIndex == 0 ? 0 : scrollIndex - 1;
       vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
 
-      programWindows[3].uiEntries.clear();
+      templateWindow->uiEntries.clear();
 
       sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
 
       for(auto i = 0; i < entries.size(); i++)
       {
-        programWindows[3].uiEntries.push_back(entries[i]);
-        programWindows[3].uiEntries[i].Draw();
+        templateWindow->uiEntries.push_back(entries[i]);
+        templateWindow->uiEntries[i].Draw();
       }
     }
 
@@ -273,15 +284,32 @@ class BoardProgram
       scrollIndex = scrollIndex == EntryManager::credentialInfo.size() - 1 ? 0 : scrollIndex + 1;
       vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
 
-      programWindows[3].uiEntries.clear();
+      templateWindow->uiEntries.clear();
 
       sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
 
       for(auto i = 0; i < entries.size(); i++)
       {
-        programWindows[3].uiEntries.push_back(entries[i]);
-        programWindows[3].uiEntries[i].Draw();
+        templateWindow->uiEntries.push_back(entries[i]);
+        templateWindow->uiEntries[i].Draw();
       }
+    }
+
+    static void resetButton_onClick(GUIElement* sender)
+    {
+      currentWindow = ResetConfirm;
+      templateWindow->loadForm = false;
+    }
+
+    static void resetConfirmedButton_onClick(GUIElement* sender)
+    {
+      templateWindow->loadForm = false;
+      resetConfirmed = true;
+    }
+
+    static void resetAbortButton_onClick(GUIElement* sender)
+    {
+      templateWindow->loadForm = false;
     }
 
     static void refreshButton_onClick(GUIElement* sender)
@@ -289,14 +317,14 @@ class BoardProgram
       scrollIndex = 0;
       vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
 
-      programWindows[3].uiEntries.clear();
+      templateWindow->uiEntries.clear();
 
       sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
 
       for(auto i = 0; i < entries.size(); i++)
       {
-        programWindows[3].uiEntries.push_back(entries[i]);
-        programWindows[3].uiEntries[i].Draw();
+        templateWindow->uiEntries.push_back(entries[i]);
+        templateWindow->uiEntries[i].Draw();
       }
     }
 
@@ -310,12 +338,21 @@ class BoardProgram
       sender->uiLabels.push_back(titleLabel);
       sender->uiLabels.push_back(barLabel);
 
-      Button menuButton = Button(displayDrv, Point(225, 10), Point(30, 30), Point(10, 8), 2, DARK_GRAY, WHITE, " ");
-      menuButton.strText[0] = MENU_ICON;
-      menuButton.SetWhenClicked(refreshButton_onClick);
+      Button resetButton = Button(displayDrv, Point(190, 10), Point(30, 30), Point(10, 8), 2, DARK_GRAY, WHITE, " ");
+      resetButton.strText[0] = RESET_ICON;
+      resetButton.SetWhenClicked(resetButton_onClick);
+
+      Button refreshButton = Button(displayDrv, Point(225, 10), Point(30, 30), Point(10, 8), 2, DARK_GRAY, WHITE, " ");
+      refreshButton.strText[0] = LIST_ICON;
+      refreshButton.SetWhenClicked(refreshButton_onClick);
 
       Button logOffButton = Button(displayDrv, Point(260, 10), Point(50, 30), Point(10, 8), 2, DARK_GRAY, WHITE, "[ ]");
       logOffButton.strText[1] = ARROW_LEFT;
+      logOffButton.SetWhenClicked([](GUIElement* sender)
+      {
+        templateWindow->loadForm = false;
+        currentWindow = LogOff;
+      });
 
       Button scrollUpButton = Button(displayDrv, Point(290, 50), Point(25, 20), Point(7, 4), 2, DARK_GRAY, WHITE, " ");
       scrollUpButton.strText[0] = ARROW_UP;
@@ -325,7 +362,8 @@ class BoardProgram
       scrollDownButton.strText[0] = ARROW_DOWN;
       scrollDownButton.SetWhenClicked(scrollDownButton_onClick);
 
-      sender->uiButtons.push_back(menuButton);
+      sender->uiButtons.push_back(resetButton);
+      sender->uiButtons.push_back(refreshButton);
       sender->uiButtons.push_back(logOffButton);
       sender->uiButtons.push_back(scrollUpButton);
       sender->uiButtons.push_back(scrollDownButton);
@@ -336,7 +374,31 @@ class BoardProgram
 
       for(auto i = 0; i < entries.size(); i++)
       {
-        programWindows[3].uiEntries.push_back(entries[i]);
+        templateWindow->uiEntries.push_back(entries[i]);
       }
+    }
+
+    static void resetConfirmWindow_onLoad(Window* sender, ILI9341* displayDrv, HR2046* touchDrv)
+    {
+      displayDrv->fillBackground(LIGHT_GRAY); // Fill Background
+
+      Label titleLabel = Label(displayDrv, Point(5, 5), Point(310, 40), Point(10, 13), 2, BLACK, WHITE, "KEYLESS GO");
+      Label infoLabel = Label(displayDrv, Point(5, 60), Point(310, 28), Point(65, 6), 2, LIGHT_GRAY, BLACK, "Erease all data?");
+      Label infoLabelC = Label(displayDrv, Point(5, 90), Point(310, 28), Point(35, 7), 2, LIGHT_GRAY, RED, "( CAN NOT BE UNDONE! )");
+      Label versionInfo = Label(displayDrv, Point(10, 210), Point(130, 20), Point(10, 7), 1, BLACK, CYAN, BOARD_SOFTWARE_VERSION);
+
+      sender->uiLabels.push_back(titleLabel);
+      sender->uiLabels.push_back(infoLabel);
+      sender->uiLabels.push_back(infoLabelC);
+      sender->uiLabels.push_back(versionInfo);
+
+      Button yesButton = Button(displayDrv, Point(90, 150), Point(50, 30), Point(8, 8), 2, BLACK, RED, "YES");
+      yesButton.SetWhenClicked(resetConfirmedButton_onClick);
+
+      Button noButton = Button(displayDrv, Point(170, 150), Point(50, 30), Point(15, 8), 2, BLACK, GREEN, "NO");
+      noButton.SetWhenClicked(resetAbortButton_onClick);
+
+      sender->uiButtons.push_back(yesButton);
+      sender->uiButtons.push_back(noButton);
     }
 };
