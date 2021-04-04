@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 
-#define BOARD_SOFTWARE_VERSION "KeylessGo 0.9 beta\n"
+#define BOARD_SOFTWARE_VERSION "KeylessGo 1.0 alpha"
 
 enum WindowType {CreateLogin, Login, MainWindow, ResetConfirm, LogOff, SendEntry};
 
@@ -361,7 +361,7 @@ class BoardProgram
       Label titleLabel = Label(displayDrv, Point(5, 5), Point(310, 40), Point(10, 13), 2, BLACK, WHITE, "KEYLESS GO");
       Label infoLabel = Label(displayDrv, Point(5, 60), Point(310, 28), Point(65, 6), 2, LIGHT_GRAY, BLACK, "Erease all data?");
       Label infoLabelC = Label(displayDrv, Point(5, 90), Point(310, 28), Point(35, 7), 2, LIGHT_GRAY, RED, "( CAN NOT BE UNDONE! )");
-      Label versionInfo = Label(displayDrv, Point(10, 210), Point(130, 20), Point(10, 7), 1, BLACK, CYAN, BOARD_SOFTWARE_VERSION);
+      Label versionInfo = Label(displayDrv, Point(10, 210), Point(140, 20), Point(10, 7), 1, BLACK, CYAN, BOARD_SOFTWARE_VERSION);
 
       sender->uiLabels.push_back(titleLabel);
       sender->uiLabels.push_back(infoLabel);

@@ -1,4 +1,5 @@
 #include "BoardProgram.h"
+#include <chrono>
 #include <cstdint>
 
 Mutex BoardProgram::threadMutex;
@@ -23,6 +24,8 @@ BoardProgram::BoardProgram(void) : flashMemory(PB_15, PB_14, PB_13, PF_13), disp
 uint8_t BoardProgram::initialize(void)
 {
   printf(BOARD_SOFTWARE_VERSION);
+  printf("\n");
+
   if(!flashMemory.isAvailable())
   {
     return 1;
@@ -36,6 +39,8 @@ uint8_t BoardProgram::initialize(void)
 
   // Test Debug Section ----------------------------------------
   //flashMemory.eraseChip();
+  //currentWindow = SendEntry;
+  //currentEntry = 0;
   //masterPassword[0] = '0';
   //masterPassword[1] = '0';
   //masterPassword[2] = '0';
@@ -108,18 +113,16 @@ uint8_t BoardProgram::run(void)
   {
     while(true)
     {
-      threadMutex.lock();
       serialCommunication->process();
-      threadMutex.unlock();
     }
   });
   
 
   while(true)
   {
-    threadMutex.lock();
+    serialCommunication->serialComMutex.lock();
     EntryManager::credentialInfo = vector<tuple<uint16_t, string>>(entryManager->getEntriesTitleInfo());
-    threadMutex.unlock();
+    serialCommunication->serialComMutex.unlock();
 
     templateWindow->Load(mainWindow_onLoad);
 
@@ -129,28 +132,28 @@ uint8_t BoardProgram::run(void)
       uint8_t email[MAX_EMAIL_LEN];
       uint8_t pwd[MAX_PASSWORD_LEN];
 
-      threadMutex.lock();
+      serialCommunication->serialComMutex.lock();
       entryManager->getEntry(currentEntry, NULL, NULL, email, pwd, NULL);
-      threadMutex.unlock();
+      serialCommunication->serialComMutex.unlock();
 
       uint8_t idx = 0;
       uint8_t dataIdx = 0;
-      while(email[idx] != 0xFF || email[idx] != 0x00)
+      while(email[idx] != 0xFF && email[idx] != 0x00)
       {
         kbData[dataIdx++] = email[idx++];
       }
 
-      kbData[dataIdx++] = 0x06; // TAB
+      kbData[dataIdx++] = US; // Unit Seperator for Tab
 
       idx = 0;
-      while(pwd[idx] != 0xFF || pwd[idx] != 0x00)
+      while(pwd[idx] != 0xFF && pwd[idx] != 0x00)
       {
         kbData[dataIdx++] = pwd[idx++];
       }
 
-      threadMutex.lock();
+      serialCommunication->serialComMutex.lock();
       serialCommunication->typeKeyboard((char*)kbData, dataIdx);
-      threadMutex.unlock();
+      serialCommunication->serialComMutex.unlock();
 
       currentWindow = MainWindow;
     }

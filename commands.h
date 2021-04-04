@@ -12,8 +12,6 @@ const uint8_t MAX_URL_LEN       = 24;
 
 const uint8_t MAX_COMM_LEN = MAX_TITLE_LEN + MAX_UNAME_LEN + MAX_EMAIL_LEN + MAX_PASSWORD_LEN + MAX_URL_LEN + 11;
 
-
-
 //General Commands
 //begins command transmission
 const char COMM_BEGIN  = 0x02;
