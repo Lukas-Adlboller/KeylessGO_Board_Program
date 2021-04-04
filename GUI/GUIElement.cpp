@@ -1,5 +1,4 @@
 #include "GUIElement.h"
-#include <cstdint>
 
 GUIElement::GUIElement(ILI9341* displayDriver, Point pos, Point size, Point txtMargin, uint8_t txtSize, uint16_t bColor, uint16_t fColor, string text)
 {
@@ -12,8 +11,6 @@ GUIElement::GUIElement(ILI9341* displayDriver, Point pos, Point size, Point txtM
   this->foreColor = fColor;
   this->strText = text;
   this->textSize = txtSize;
-
-  // Draw();
 }
 
 
@@ -30,7 +27,11 @@ bool GUIElement::Clicked(uint16_t x, uint16_t y)
 
   if(inXRange && inYRange)
   {
-    clickAction(this);
+    if(clickAction != NULL)
+    {
+      clickAction(this);
+    }
+
     Draw();
     return true;
   }

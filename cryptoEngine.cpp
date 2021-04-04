@@ -1,7 +1,4 @@
 #include "CryptoEngine.h"
-#include "mbed.h"
-#include <cstdint>
-#include "pkcs5.h"
 
 /*
   CryptoEngine(void) initializes class.
@@ -30,9 +27,8 @@ uint8_t CryptoEngine::hashWithSha256(uint8_t *input, uint8_t *output)
     return 1;
   }
 
-  char c = ' ';
   uint8_t stringSize = 0;
-  while((c = input[stringSize]) != '\0')
+  while(input[stringSize] != '\0')
   {
     stringSize++;
   }
@@ -42,13 +38,6 @@ uint8_t CryptoEngine::hashWithSha256(uint8_t *input, uint8_t *output)
     printf("[Error] Could not hash data array!\n");
     return 2;
   }
-
-  printf("[Info] \'%s\' was hashed into \'", input);
-  for(auto i = 0; i < 32; i++)
-  {
-    printf("%x", output[i]);
-  }
-  printf("\'\n");
 
   return 0;
 }
@@ -84,13 +73,6 @@ uint8_t CryptoEngine::generateRandomSalt(uint8_t *output)
 
   HAL_RNG_DeInit(&rngInstance);
 
-  printf("[Info] Random generated salt \'");
-  for(auto i = 0; i < MAX_SALT_LENGTH; i++)
-  {
-    printf("%x", output[i]);
-  }
-  printf("\'\n");
-
   return 0;
 }
 
@@ -121,8 +103,8 @@ uint8_t CryptoEngine::generateAesKeyAndIV(void)
     return 2;
   }
 
-  mbedtls_pkcs5_pbkdf2_hmac(&sha256_context, masterPassword, 32, generatedSalt, 16, 512, 128, generatedAesKey);
-  mbedtls_pkcs5_pbkdf2_hmac(&sha256_context, masterPassword, 32, generatedSalt, 16, 512, 16, generatedAesIV);
+  mbedtls_pkcs5_pbkdf2_hmac(&sha256_context, masterPassword, MASTER_PASSWORD_LENGTH, generatedSalt, MAX_SALT_LENGTH, 512, 128, generatedAesKey);
+  mbedtls_pkcs5_pbkdf2_hmac(&sha256_context, masterPassword, MASTER_PASSWORD_LENGTH, generatedSalt, MAX_SALT_LENGTH, 512, 16, generatedAesIV);
 
   return 0;
 }

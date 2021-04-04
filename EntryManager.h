@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <vector>
 #include <string>
+#include <algorithm>
+#include <cstdio>
+#include <functional>
 
 #ifndef ENTRY_MANAGER_H
 #define ENTRY_MANAGER_H

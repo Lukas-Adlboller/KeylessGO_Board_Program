@@ -5,13 +5,14 @@ Mutex BoardProgram::threadMutex;
 bool BoardProgram::resetConfirmed = false;
 Window* BoardProgram::templateWindow;
 uint16_t BoardProgram::scrollIndex = 0;
+uint16_t BoardProgram::currentEntry = 0;
 uint8_t BoardProgram::masterPassword[6];
 WindowType BoardProgram::currentWindow = Login;
 
 /*
   BoardProgram(void) initializes class, display spi, touch spi and flash spi interface.
 */
-BoardProgram::BoardProgram(void) : flashMemory(PE_6, PE_5, PE_12, D3), displayDriver(D11, D12, D13, D7, D6, D5), touchDriver(D63, D61, D62, D4)
+BoardProgram::BoardProgram(void) : flashMemory(PB_15, PB_14, PB_13, PF_13), displayDriver(PF_9, PF_8, PF_7, PE_11, PF_15, PF_14), touchDriver(PE_6, PE_5, PE_12, PE_9)
 {
   cryptoEngine = new CryptoEngine();
   entryManager = new EntryManager(&flashMemory, cryptoEngine);
@@ -19,31 +20,28 @@ BoardProgram::BoardProgram(void) : flashMemory(PE_6, PE_5, PE_12, D3), displayDr
   templateWindow = new Window(&displayDriver, &touchDriver);
 }
 
-/*
-  void reset(void) resets device. Flash memory will be ereased where settings are stored.
-*/
-void BoardProgram::reset(void)
-{
-  flashMemory.eraseChip();
-}
-
 uint8_t BoardProgram::initialize(void)
 {
+  printf(BOARD_SOFTWARE_VERSION);
   if(!flashMemory.isAvailable())
   {
-    return -1;
+    return 1;
   }
 
   displayDriver.initialize();
-  touchDriver.initialize();
-
   displayDriver.setRotation(3);
+
+  touchDriver.initialize();
   touchDriver.setRotation(3);
 
   // Test Debug Section ----------------------------------------
-  //reset(); // For testing purposes
-  //entryManager->reloadSettings();
-  //templateWindow->Load(resetConfirmWindow_onLoad);
+  //flashMemory.eraseChip();
+  //masterPassword[0] = '0';
+  //masterPassword[1] = '0';
+  //masterPassword[2] = '0';
+  //masterPassword[3] = '0';
+  //masterPassword[4] = '0';
+  //masterPassword[5] = '0';
   // -----------------------------------------------------------
 
   if(entryManager->needsToBeInitialized())
@@ -67,7 +65,9 @@ uint8_t BoardProgram::initialize(void)
     currentWindow = entryManager->comparePassword(masterPassword) ? MainWindow : Login;
   }
 
-  // printf("[Info] Login successfull!\n");
+  cryptoEngine->setMasterPassword(masterPassword);
+  entryManager->loadSalt();
+  cryptoEngine->generateAesKeyAndIV();
   
   return 0;
 }
@@ -83,12 +83,10 @@ uint8_t BoardProgram::runFirstStartupRoutine(void)
     templateWindow->Load(repeatLoginForm_onLoad);
   }
 
-  // printf("[Info] New Master Password is: %d %d %d %d %d %d\n", masterPassword[0], masterPassword[1], masterPassword[2], masterPassword[3], masterPassword[4], masterPassword[5]);
-
-  uint8_t generatedRandomSalt[MAX_SALT_LENGTH];
   entryManager->savePassword(masterPassword);
   cryptoEngine->setMasterPassword(masterPassword);
   
+  uint8_t generatedRandomSalt[MAX_SALT_LENGTH];
   if(cryptoEngine->generateRandomSalt(generatedRandomSalt) != 0)
   {
     printf("[Error] Error while generating Random Salt!\n");
@@ -105,15 +103,6 @@ uint8_t BoardProgram::runFirstStartupRoutine(void)
 
 uint8_t BoardProgram::run(void)
 {
-  /* Test Debug Section
-  entryManager->addEntry("Twitter", "UserA", "no", "1234", "no");
-  entryManager->addEntry("Twitch", "UserB", "no", "1234", "no");
-  entryManager->addEntry("Google", "UserC", "no", "1234", "no");
-  entryManager->addEntry("Steam", "UserD", "no", "1234", "no");
-  entryManager->addEntry("Bulme", "UserE", "no", "1234", "no");
-  entryManager->addEntry("Reddit", "UserF", "no", "1234", "no");
-  // ------------------- */
-
   Thread serialComThread;
   serialComThread.start([this]()
   {
@@ -124,14 +113,50 @@ uint8_t BoardProgram::run(void)
       threadMutex.unlock();
     }
   });
+  
 
   while(true)
   {
+    threadMutex.lock();
     EntryManager::credentialInfo = vector<tuple<uint16_t, string>>(entryManager->getEntriesTitleInfo());
+    threadMutex.unlock();
+
     templateWindow->Load(mainWindow_onLoad);
 
+    if(currentWindow == SendEntry)
+    {
+      uint8_t kbData[128];
+      uint8_t email[MAX_EMAIL_LEN];
+      uint8_t pwd[MAX_PASSWORD_LEN];
+
+      threadMutex.lock();
+      entryManager->getEntry(currentEntry, NULL, NULL, email, pwd, NULL);
+      threadMutex.unlock();
+
+      uint8_t idx = 0;
+      uint8_t dataIdx = 0;
+      while(email[idx] != 0xFF || email[idx] != 0x00)
+      {
+        kbData[dataIdx++] = email[idx++];
+      }
+
+      kbData[dataIdx++] = 0x06; // TAB
+
+      idx = 0;
+      while(pwd[idx] != 0xFF || pwd[idx] != 0x00)
+      {
+        kbData[dataIdx++] = pwd[idx++];
+      }
+
+      threadMutex.lock();
+      serialCommunication->typeKeyboard((char*)kbData, dataIdx);
+      threadMutex.unlock();
+
+      currentWindow = MainWindow;
+    }
     if(currentWindow == LogOff)
     {
+      serialComThread.terminate();
       entryManager->saveSettings();
       break;
     }
@@ -142,9 +167,7 @@ uint8_t BoardProgram::run(void)
       if(resetConfirmed)
       {
         serialComThread.terminate();
-        reset();
-        entryManager->reloadSettings();
-        resetConfirmed = false;
+        flashMemory.eraseChip();
         break;
       }
     }

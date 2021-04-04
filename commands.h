@@ -44,6 +44,6 @@ const char COMM_SEND_ACC_NUM  = 0x40;
 const char COMM_SEND_ACC			= 0x41;
 
 //Internal Control Commands
-const char CTRL_TYPE_KB = '2';
+const char CTRL_TYPE_KB = 0x50;
 
 #endif

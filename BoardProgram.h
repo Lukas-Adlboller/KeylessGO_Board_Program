@@ -1,17 +1,13 @@
 #include "mbed.h"
-#include "CryptoEngine.h"
-#include "MT25Q.h"
-#include "ILI9341.h"
-#include "HR2046.h"
 #include "EntryManager.h"
 #include "KeylessComm_STM32F746.h"
 #include "GUI\Window.h"
 #include <cstdint>
 #include <cstdio>
 
-#define BOARD_SOFTWARE_VERSION "KeylessGo 0.2 beta"
+#define BOARD_SOFTWARE_VERSION "KeylessGo 0.9 beta\n"
 
-enum WindowType {CreateLogin, Login, MainWindow, ResetConfirm, LogOff};
+enum WindowType {CreateLogin, Login, MainWindow, ResetConfirm, LogOff, SendEntry};
 
 class BoardProgram
 {
@@ -19,41 +15,44 @@ class BoardProgram
     BoardProgram(void);
     uint8_t initialize(void);
     uint8_t run(void);
-    void reset(void);
-
-    static Mutex threadMutex;
-    static bool resetConfirmed;
-    static Window* templateWindow;
-    static uint16_t scrollIndex;
-    static uint8_t masterPassword[6];
-    static WindowType currentWindow;
-
+    
   private:
     MT25Q flashMemory;
     ILI9341 displayDriver;
     HR2046 touchDriver;
     CryptoEngine* cryptoEngine;
-    KeylessCom* serialCommunication;
     EntryManager* entryManager;
+    KeylessCom* serialCommunication;
 
-    uint8_t runFirstStartupRoutine(void);
+    static Window* templateWindow;
+    static WindowType currentWindow;
+    static uint8_t masterPassword[6];
+    static bool resetConfirmed;
+    static Mutex threadMutex;
+    static uint16_t scrollIndex;
+    static uint16_t currentEntry;
+
     void updateEntryCount(uint16_t entryCount);
-
-    // ------------ Window Event Functions ------------
+    uint8_t runFirstStartupRoutine(void);
+    
+    // ------------ GUI Event Functions ------------
     static vector<CredentialEntry> getEntriesToDraw(ILI9341* displayDrv)
     {
-      uint16_t posY = 50;
       vector<CredentialEntry> credentialEntries;
+
+      uint16_t posY = 50;
       uint16_t entryEndIndex = (scrollIndex + 5) > EntryManager::credentialInfo.size() ? EntryManager::credentialInfo.size() : scrollIndex + 5;
+
       for(uint16_t i = scrollIndex; i < entryEndIndex; i++)
       {
-        CredentialEntry tmp = CredentialEntry(displayDrv, Point(5, posY), BLACK, WHITE, "");
+        CredentialEntry tmp = CredentialEntry(displayDrv, Point(5, posY), BLACK, WHITE);
         tmp.SetCredentialInfo(get<0>(EntryManager::credentialInfo.at(i)), get<1>(EntryManager::credentialInfo.at(i)));
+        tmp.SetWhenClicked(writeAsKeyboardButton_onClick);
+        
         credentialEntries.push_back(tmp);
         posY += 37;
-        // printf("Entry start: %d end: %d current: %d\n", scrollIndex, entryEndIndex, i);
       }
-
+      
       return credentialEntries;
     }
 
@@ -66,23 +65,12 @@ class BoardProgram
     static void pinButtonMinus_onClick(GUIElement* sender)
     {
       ((Button*)sender)->elementIterator->strText[0]--;
-      printf("%X\n", ((Button*)sender)->elementIterator->strText[0]);
       ((Button*)sender)->elementIterator->Draw();
     }
 
     static void loginButton_onClick(GUIElement* sender)
     {
       vector<GUIElement>::iterator iter = ((Button*)sender)->elementIterator;
-      /*
-      printf(
-        "[Info] Pin is: %c %c %c %c %c %c\n", 
-        (iter + 2)->strText[0], 
-        (iter + 3)->strText[0], 
-        (iter + 4)->strText[0], 
-        (iter + 5)->strText[0], 
-        (iter + 6)->strText[0], 
-        (iter + 7)->strText[0]);
-      */
 
       masterPassword[0] = (iter + 2)->strText[0];
       masterPassword[1] = (iter + 3)->strText[0];
@@ -97,16 +85,6 @@ class BoardProgram
     static void createLoginButton_onClick(GUIElement* sender)
     {
       vector<GUIElement>::iterator iter = ((Button*)sender)->elementIterator;
-      /*
-      printf(
-        "[Info] New Pin is: %c %c %c %c %c %c\n", 
-        (iter + 2)->strText[0], 
-        (iter + 3)->strText[0], 
-        (iter + 4)->strText[0], 
-        (iter + 5)->strText[0], 
-        (iter + 6)->strText[0], 
-        (iter + 7)->strText[0]);
-      */
 
       masterPassword[0] = (iter + 2)->strText[0];
       masterPassword[1] = (iter + 3)->strText[0];
@@ -121,24 +99,16 @@ class BoardProgram
     static void repeatLoginButton_onClick(GUIElement* sender)
     {
       vector<GUIElement>::iterator iter = ((Button*)sender)->elementIterator;
-      /*
-      printf(
-        "[Info] Repeated Pin is: %c %c %c %c %c %c\n",
+  
+      uint8_t pwd[6] = 
+      {
         (iter + 2)->strText[0], 
         (iter + 3)->strText[0], 
         (iter + 4)->strText[0], 
         (iter + 5)->strText[0], 
         (iter + 6)->strText[0], 
-        (iter + 7)->strText[0]);
-      */
-
-      uint8_t pwd[6];
-      pwd[0] = (iter + 2)->strText[0];
-      pwd[1] = (iter + 3)->strText[0];
-      pwd[2] = (iter + 4)->strText[0];
-      pwd[3] = (iter + 5)->strText[0];
-      pwd[4] = (iter + 6)->strText[0];
-      pwd[5] = (iter + 7)->strText[0];
+        (iter + 7)->strText[0]
+      };
 
       bool samePwd = true;
       for(int i = 0; i < 6; i++)
@@ -152,6 +122,95 @@ class BoardProgram
 
       templateWindow->loadForm = false;
       currentWindow = samePwd ? Login : CreateLogin;
+    }
+
+    static void writeAsKeyboardButton_onClick(GUIElement* sender)
+    {
+      templateWindow->loadForm = false;
+      currentEntry = ((CredentialEntry*)sender)->getEntryId();
+      currentWindow = SendEntry;
+    }
+
+    static void createLoginForm_onLoad(Window* sender, ILI9341* displayDrv, HR2046* touchDrv)
+    {
+      loginForm_onLoad(sender, displayDrv, touchDrv);
+      sender->uiLabels[1].strText = "Create New Password";
+      sender->uiButtons[12].strText = "Next [ ]";
+      sender->uiButtons[12].strText[6] = ARROW_LEFT;
+      sender->uiButtons[12].SetWhenClicked(createLoginButton_onClick);
+    }
+
+    static void repeatLoginForm_onLoad(Window* sender, ILI9341* displayDrv, HR2046* touchDrv)
+    {
+      loginForm_onLoad(sender, displayDrv, touchDrv);
+      sender->uiLabels[1].strText = "Repeat New Password";
+      sender->uiButtons[12].strText = "Start [ ]";
+      sender->uiButtons[12].strText[7] = ARROW_LEFT;
+      sender->uiButtons[12].SetWhenClicked(repeatLoginButton_onClick);
+    }
+
+    static void scrollUpButton_onClick(GUIElement* sender)
+    {
+      scrollIndex = scrollIndex == 0 ? 0 : scrollIndex - 1;
+      vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
+
+      templateWindow->uiEntries.clear();
+
+      sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
+
+      for(auto i = 0; i < entries.size(); i++)
+      {
+        templateWindow->uiEntries.push_back(entries[i]);
+        templateWindow->uiEntries[i].Draw();
+      }
+    }
+
+    static void scrollDownButton_onClick(GUIElement* sender)
+    {
+      vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
+      scrollIndex = scrollIndex == EntryManager::credentialInfo.size() - 1 ? 0 : scrollIndex + 1;
+
+      templateWindow->uiEntries.clear();
+      sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
+
+      for(auto i = 0; i < entries.size(); i++)
+      {
+        templateWindow->uiEntries.push_back(entries[i]);
+        templateWindow->uiEntries[i].Draw();
+      }
+    }
+
+    static void resetButton_onClick(GUIElement* sender)
+    {
+      currentWindow = ResetConfirm;
+      templateWindow->loadForm = false;
+    }
+
+    static void resetConfirmedButton_onClick(GUIElement* sender)
+    {
+      templateWindow->loadForm = false;
+      resetConfirmed = true;
+    }
+
+    static void resetAbortButton_onClick(GUIElement* sender)
+    {
+      templateWindow->loadForm = false;
+    }
+
+    static void refreshButton_onClick(GUIElement* sender)
+    {
+      scrollIndex = 0;
+      vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
+
+      templateWindow->uiEntries.clear();
+
+      sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
+
+      for(auto i = 0; i < entries.size(); i++)
+      {
+        templateWindow->uiEntries.push_back(entries[i]);
+        templateWindow->uiEntries[i].Draw();
+      }
     }
 
     static void loginForm_onLoad(Window* sender, ILI9341* displayDrv, HR2046* touchDrv)
@@ -243,89 +302,6 @@ class BoardProgram
       sender->uiButtons.push_back(pinButtonFPlus);
       sender->uiButtons.push_back(pinButtonFMinus);
       sender->uiButtons.push_back(pinButtonLogin);
-    }
-
-    static void createLoginForm_onLoad(Window* sender, ILI9341* displayDrv, HR2046* touchDrv)
-    {
-      loginForm_onLoad(sender, displayDrv, touchDrv);
-      sender->uiLabels[1].strText = "Create New Password";
-      sender->uiButtons[12].strText = "Next [ ]";
-      sender->uiButtons[12].strText[6] = ARROW_LEFT;
-      sender->uiButtons[12].SetWhenClicked(createLoginButton_onClick);
-    }
-
-    static void repeatLoginForm_onLoad(Window* sender, ILI9341* displayDrv, HR2046* touchDrv)
-    {
-      loginForm_onLoad(sender, displayDrv, touchDrv);
-      sender->uiLabels[1].strText = "Repeat New Password";
-      sender->uiButtons[12].strText = "Start [ ]";
-      sender->uiButtons[12].strText[7] = ARROW_LEFT;
-      sender->uiButtons[12].SetWhenClicked(repeatLoginButton_onClick);
-    }
-
-    static void scrollUpButton_onClick(GUIElement* sender)
-    {
-      scrollIndex = scrollIndex == 0 ? 0 : scrollIndex - 1;
-      vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
-
-      templateWindow->uiEntries.clear();
-
-      sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
-
-      for(auto i = 0; i < entries.size(); i++)
-      {
-        templateWindow->uiEntries.push_back(entries[i]);
-        templateWindow->uiEntries[i].Draw();
-      }
-    }
-
-    static void scrollDownButton_onClick(GUIElement* sender)
-    {
-      scrollIndex = scrollIndex == EntryManager::credentialInfo.size() - 1 ? 0 : scrollIndex + 1;
-      vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
-
-      templateWindow->uiEntries.clear();
-
-      sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
-
-      for(auto i = 0; i < entries.size(); i++)
-      {
-        templateWindow->uiEntries.push_back(entries[i]);
-        templateWindow->uiEntries[i].Draw();
-      }
-    }
-
-    static void resetButton_onClick(GUIElement* sender)
-    {
-      currentWindow = ResetConfirm;
-      templateWindow->loadForm = false;
-    }
-
-    static void resetConfirmedButton_onClick(GUIElement* sender)
-    {
-      templateWindow->loadForm = false;
-      resetConfirmed = true;
-    }
-
-    static void resetAbortButton_onClick(GUIElement* sender)
-    {
-      templateWindow->loadForm = false;
-    }
-
-    static void refreshButton_onClick(GUIElement* sender)
-    {
-      scrollIndex = 0;
-      vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
-
-      templateWindow->uiEntries.clear();
-
-      sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
-
-      for(auto i = 0; i < entries.size(); i++)
-      {
-        templateWindow->uiEntries.push_back(entries[i]);
-        templateWindow->uiEntries[i].Draw();
-      }
     }
 
     static void mainWindow_onLoad(Window* sender, ILI9341* displayDrv, HR2046* touchDrv)

@@ -1,3 +1,5 @@
+#include "mbed.h"
+#include "pkcs5.h"
 #include <cstdint>
 
 #define MASTER_PASSWORD_LENGTH  6
@@ -18,10 +20,10 @@ class CryptoEngine
     void setMasterPassword(uint8_t* pwd);
 
   private:
-    uint8_t masterPassword[32];
+    uint8_t masterPassword[MASTER_PASSWORD_LENGTH];
     uint8_t generatedAesKey[128];
     uint8_t generatedAesIV[16];
-    uint8_t generatedSalt[16];
+    uint8_t generatedSalt[MAX_SALT_LENGTH];
 };
 
 #endif

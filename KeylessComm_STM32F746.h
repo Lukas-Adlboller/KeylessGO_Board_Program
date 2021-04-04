@@ -1,15 +1,14 @@
+#include "mbed.h"
+#include "commands.h"
 #include "EntryManager.h"
+#include <cstdint>
 
 #ifndef KEYLESS_COM_STM
 #define KEYLESS_COM_STM
 
-#define COM_SERIAL_TX D1
-#define COM_SERIAL_RX D0
-
+#define COM_SERIAL_TX PG_14
+#define COM_SERIAL_RX PG_9
 #define TIMEOUT_TIME 5000
-
-#include "mbed.h"
-#include "commands.h"
 
 typedef enum STATUS {
 	STATUS_OK,
@@ -86,8 +85,12 @@ class KeylessCom {
 		 */
 		STATUS typeKeyboard(char Keys[128], uint8_t size = 0);
 
+    static BufferedSerial Serial;
+    
 	private:
     void processCommand();
+    void copyArray(char* arrA, char* arrB, uint8_t& arrAIdx, uint8_t maxLength);
+    STATUS checkForTimeout();
 
 		Timer timeoutTimer;
 

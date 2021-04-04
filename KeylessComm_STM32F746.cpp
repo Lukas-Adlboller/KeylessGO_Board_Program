@@ -1,14 +1,46 @@
 #include "KeylessComm_STM32F746.h"
-#include "mbed.h"
-#include "commands.h"
-#include <cstdint>
 
-static BufferedSerial Serial(COM_SERIAL_TX, COM_SERIAL_RX);
+BufferedSerial KeylessCom::Serial(COM_SERIAL_TX, COM_SERIAL_RX, 9600);
 
 KeylessCom::KeylessCom(int speed, EntryManager* entryManager)
 {
-  Serial.set_baud(speed);
   this->entryManager = entryManager;
+}
+
+STATUS KeylessCom::checkForTimeout()
+{
+  timeoutTimer.reset();
+  timeoutTimer.start();
+  bool timeout = false;
+
+  while(!Serial.readable() && !timeout)
+  {
+    if(std::chrono::duration_cast<std::chrono::milliseconds>(timeoutTimer.elapsed_time()).count() >= TIMEOUT_TIME)
+    {
+      timeout = true;
+    }
+  }
+
+  timeoutTimer.stop();
+
+  if(timeout)
+  {
+    return STATUS_TIMEOUT;
+  }
+
+  return STATUS_OK;
+}
+
+void KeylessCom::copyArray(char* arrA, char* arrB, uint8_t& arrAIdx, uint8_t maxLength)
+{
+  for(auto i = 0; i < maxLength; i++)
+  {
+    arrA[arrAIdx++] = arrB[i];
+    if(arrB[i + 1] == '\0')
+    {
+      break;
+    }
+  }
 }
 
 void KeylessCom::process()
@@ -18,6 +50,8 @@ void KeylessCom::process()
     char serialBuffer;
     Serial.read(&serialBuffer, 1);
 
+    printf("[Info] Debug value: %x\n", serialBuffer);
+
     if(ignoreCommandIdx == 0)
     {
       switch(serialBuffer)
@@ -26,7 +60,6 @@ void KeylessCom::process()
           inCommand = true;
           commandBufferIdx = 0;
           break;
-
         case COMM_GET_ACC:
         case COMM_REM_ACC:
         case COMM_EDIT_ACC:
@@ -34,7 +67,6 @@ void KeylessCom::process()
           commandBufferIdx++;
           ignoreCommandIdx = 2;
           break;
-
         case COMM_END:
           if(inCommand)
           {
@@ -42,7 +74,6 @@ void KeylessCom::process()
             processCommand();
           }
           break;
-
         default:
           if(inCommand)
           {
@@ -66,18 +97,11 @@ void KeylessCom::process()
 
 void KeylessCom::processCommand()
 {
-  if(commandBuffer[0] == COMM_AUTH_BEGIN 
-  || commandBuffer[0] == COMM_AUTH_CODE 
-  || commandBuffer[0] == COMM_AUTH_AUTO 
-  || commandBuffer[0] == COMM_DISCONNECT)
-  {
-    Serial.write(&NACK, 1);
-  }
-  else if(commandBuffer[0] == COMM_GET_ACC_NUM)
+  if(commandBuffer[0] == COMM_GET_ACC_NUM)
   {
     uint16_t accountNumber = entryManager->getEntryCount();
 
-    switch(this->sendAccountNumber(accountNumber))
+    switch(sendAccountNumber(accountNumber))
     {
       case STATUS_WRONG_PARAMETER:
     		printf("sendAccountNumber in getAccountNum failed with STATUS_WRONG_PARAMETER\n\n");
@@ -85,201 +109,173 @@ void KeylessCom::processCommand()
     	case STATUS_TIMEOUT:
     		printf("sendAccountNumber in getAccountNum failed with STATUS_TIMEOUT\n\n");
     		break;
-    	case	STATUS_NACK:
+    	case STATUS_NACK:
     		printf("sendAccountNumber in getAccountNum failed with STATUS_NACK\n\n");
     		break;
-    	case	STATUS_INVALID_RESPONSE:
+    	case STATUS_INVALID_RESPONSE:
     		printf("sendAccountNumber in getAccountNum failed with STATUS_INVALID_RESPONSE\n\n");
     		break;
+      case STATUS_OK:
+        break;
     }
   }
-
   else if(commandBuffer[0] == COMM_GET_ACC)
   {
-    // Deleted check if getAccount callback function is existing because now the functions from EntryManager will be used instead.
-    // Now this part gets the information of an entry and sends it directly if possible instead of letting the getAccount function do that.
-
-    uint16_t msb = commandBuffer[1];
-    uint16_t lsb = commandBuffer[2];
-    uint16_t id = (msb << 8) | lsb;
-
     uint8_t title[MAX_TITLE_LEN];
     uint8_t usr[MAX_UNAME_LEN];
     uint8_t email[MAX_EMAIL_LEN];
     uint8_t pwd[MAX_PASSWORD_LEN];
     uint8_t url[MAX_URL_LEN];
 
-    if(entryManager->getEntry(id, title, usr, email, pwd, url) != true)
+    uint16_t id = (commandBuffer[1] << 8) | commandBuffer[2];
+    if(entryManager->getEntry(id, title, usr, email, pwd, url))
     {
-      Serial.write(&NACK, 1);
+      sendAccount(id, (char*)title, (char*)usr, (char*)email, (char*)pwd, (char*)url);      
     }
     else
     {
-      sendAccount(id, (char*)title, (char*)usr, (char*)email, (char*)pwd, (char*)url);
+      Serial.write(&NACK, 1);
     }
   }
-
   else if (commandBuffer[0] == COMM_ADD_ACC)
   {
-    char Title[MAX_TITLE_LEN];
-    char Uname[MAX_UNAME_LEN];
-    char Email[MAX_EMAIL_LEN];
-    char Passwd[MAX_PASSWORD_LEN];
-    char Url[MAX_URL_LEN];
+    char title[MAX_TITLE_LEN];
+    char usr[MAX_UNAME_LEN];
+    char email[MAX_EMAIL_LEN];
+    char pwd[MAX_PASSWORD_LEN];
+    char url[MAX_URL_LEN];
 
-    memset(Title,0,sizeof(Title));
-    memset(Uname,0,sizeof(Uname));
-    memset(Email,0,sizeof(Email));
-    memset(Passwd,0,sizeof(Passwd));
-    memset(Url,0,sizeof(Url));
+    memset(title, 0, MAX_TITLE_LEN);
+    memset(usr, 0, MAX_UNAME_LEN);
+    memset(email, 0, MAX_EMAIL_LEN);
+    memset(pwd, 0, MAX_PASSWORD_LEN);
+    memset(url, 0, MAX_URL_LEN);
 
     uint8_t currentStringLen = 0;
-    enum procStates {title = 0, uname = 1, email = 2, passwd = 3, url = 4};
-    procStates procState = title;
+    enum procStates {Title, Username, Email, Password, Url};
+    uint8_t procState = Title;
 
     for(uint8_t i = 1; i < commandBufferIdx; i++)
     {
       if(commandBuffer[i] == US)
       {
-        procState = static_cast<procStates>(static_cast<int>(procState) + 1);
+        procState++;
         i++;
         currentStringLen = 0;
       }
 
       switch(procState)
       {
-        case title:
-          Title[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Title:
+          title[currentStringLen] = commandBuffer[i];
           break;
-        case uname:
-          Uname[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Username:
+          usr[currentStringLen] = commandBuffer[i];
           break;
-        case email:
-          Email[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Email:
+          email[currentStringLen] = commandBuffer[i];
           break;
-        case passwd:
-          Passwd[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Password:
+          pwd[currentStringLen] = commandBuffer[i];
           break;
-        case url:
-          Url[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Url:
+          url[currentStringLen] = commandBuffer[i];
           break;
       }
+
+      currentStringLen++;
     }
 
-    if(entryManager->addEntry(Title, Uname, Email, Passwd, Url)) Serial.write(&ACK, 1);
-    else Serial.write(&NACK, 1);
+    const char response = entryManager->addEntry(title, usr, email, pwd, url) ? ACK : NACK;
+    Serial.write(&response, 1);
 
     EntryManager::credentialInfo = entryManager->getEntriesTitleInfo();
   }
-
   else if(commandBuffer[0] == COMM_REM_ACC)
   {
-    uint16_t msb = commandBuffer[1];
-    uint16_t lsb = commandBuffer[2];
-    uint16_t id = (msb << 8) | lsb;
+    uint16_t id = (commandBuffer[1] << 8) | commandBuffer[2];
     
-    if(entryManager->removeEntry(id)) Serial.write(&ACK, 1);
-    else Serial.write(&NACK, 1);
+    const char response = entryManager->removeEntry(id) ? ACK : NACK;
+    Serial.write(&response, 1);
 
     EntryManager::credentialInfo = entryManager->getEntriesTitleInfo();
   }
-
   else if(commandBuffer[0] == COMM_EDIT_ACC)
   {
-    char Title[MAX_TITLE_LEN];
-    char Uname[MAX_UNAME_LEN];
-    char Email[MAX_EMAIL_LEN];
-    char Passwd[MAX_PASSWORD_LEN];
-    char Url[MAX_URL_LEN];
+    char title[MAX_TITLE_LEN];
+    char usr[MAX_UNAME_LEN];
+    char email[MAX_EMAIL_LEN];
+    char pwd[MAX_PASSWORD_LEN];
+    char url[MAX_URL_LEN];
 
-    memset(Title,0,sizeof(Title));
-    memset(Uname,0,sizeof(Uname));
-    memset(Email,0,sizeof(Email));
-    memset(Passwd,0,sizeof(Passwd));
-    memset(Url,0,sizeof(Url));
+    memset(title, 0, MAX_TITLE_LEN);
+    memset(usr, 0, MAX_UNAME_LEN);
+    memset(email, 0, MAX_EMAIL_LEN);
+    memset(pwd, 0, MAX_PASSWORD_LEN);
+    memset(url, 0, MAX_URL_LEN);
 
     uint8_t currentStringLen = 0;
-    enum procStates {title = 0, uname = 1, email = 2, passwd = 3, url = 4};
-    procStates procState = title;
+    enum procStates {Title, Username, Email, Password, Url};
+    uint8_t procState = Title;
 
-    for(uint8_t i = 4; i < commandBufferIdx; i++)
+    for(uint8_t i = 1; i < commandBufferIdx; i++)
     {
       if(commandBuffer[i] == US)
       {
-        procState = static_cast<procStates>(static_cast<int>(procState) + 1);
+        procState++;
         i++;
         currentStringLen = 0;
       }
 
       switch(procState)
       {
-        case title:
-          Title[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Title:
+          title[currentStringLen] = commandBuffer[i];
           break;
-        case uname:
-          Uname[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Username:
+          usr[currentStringLen] = commandBuffer[i];
           break;
-        case email:
-          Email[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Email:
+          email[currentStringLen] = commandBuffer[i];
           break;
-        case passwd:
-          Passwd[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Password:
+          pwd[currentStringLen] = commandBuffer[i];
           break;
-        case url:
-          Url[currentStringLen] = commandBuffer[i];
-          currentStringLen++;
+        case Url:
+          url[currentStringLen] = commandBuffer[i];
           break;
       }
+
+      currentStringLen++;
     }
 
-    uint16_t msb = commandBuffer[1];
-    uint16_t lsb = commandBuffer[2];
-    uint16_t id = (msb << 8) | lsb;
 
-    if(entryManager->editEntry(id, Title, Uname, Email, Passwd, Url)) Serial.write(&ACK, 1);
-    else Serial.write(&NACK, 1);
+    uint16_t id = (commandBuffer[1] << 8) | commandBuffer[2];
+    const char response = entryManager->editEntry(id, title, usr, email, pwd, url) ? ACK : NACK;
+    Serial.write(&response, 1);
 
     EntryManager::credentialInfo = entryManager->getEntriesTitleInfo();
+  }
+  else
+  {
+    Serial.write(&NACK, 1);
   }
 }
 
 STATUS KeylessCom::sendAccountNumber(uint16_t accountNumber)
 {
-
-  char buffer[5] = {
+  char buffer[5] =
+  {
     COMM_BEGIN,
     COMM_SEND_ACC_NUM,
-    char((accountNumber & 0b1111111100000000) >> 8),
-    char((accountNumber & 0b0000000011111111)),
+    char((accountNumber & 0xFF00) >> 8),
+    char((accountNumber & 0xFF)),
     COMM_END
   };
 
   Serial.write(buffer, 5);
 
-  timeoutTimer.reset();
-  timeoutTimer.start();
-  bool timeout = false;
-
-  while((!Serial.readable()) && (!timeout))
-  {
-    if(std::chrono::duration_cast<std::chrono::milliseconds>(timeoutTimer.elapsed_time()).count() >= TIMEOUT_TIME)
-    {
-      timeout = true;
-    }
-  }
-
-  timeoutTimer.stop();
-
-  if(timeout)
+  if(checkForTimeout() == STATUS_TIMEOUT)
   {
     return STATUS_TIMEOUT;
   }
@@ -287,106 +283,43 @@ STATUS KeylessCom::sendAccountNumber(uint16_t accountNumber)
   char serialBuffer;
   Serial.read(&serialBuffer, 1);
 
-  if(serialBuffer == ACK) return STATUS_OK;
-  else if(serialBuffer == NACK) return STATUS_NACK;
-  else return STATUS_INVALID_RESPONSE;
+  switch(serialBuffer)
+  {
+    case ACK:
+      return STATUS_OK;
+    case NACK:
+      return STATUS_NACK;
+    default:
+      return STATUS_INVALID_RESPONSE;
+  }
 }
 
 STATUS KeylessCom::sendAccount(unsigned short int ID, char Title[MAX_TITLE_LEN], char Uname[MAX_UNAME_LEN], char Email[MAX_EMAIL_LEN], char Passwd[MAX_PASSWORD_LEN], char Url[MAX_URL_LEN])
 {
-  char buffer[MAX_COMM_LEN];
-
-  buffer[0] = COMM_BEGIN;
-  buffer[1] = COMM_SEND_ACC;
-
-  buffer[2] = char((ID & 0xFF00) >> 8);
-  buffer[3] = char(ID & 0x00FF);
-
-  uint8_t bufferi = 4;
-  uint8_t i = 0;
-
-  for(i = 0; i < MAX_TITLE_LEN; i++)
+  char buffer[MAX_COMM_LEN] =
   {
-    buffer[bufferi] = Title[i];
-    bufferi++;
-    if(Title[i + 1] == '\0')
-    {
-      break;
-    }
-  }
+    COMM_BEGIN,
+    COMM_SEND_ACC,
+    char((ID & 0xFF00) >> 8),
+    char(ID & 0x00FF)
+  };
 
-  buffer[bufferi] = US;
-  bufferi++;
+  uint8_t bufferIdx = 4;
 
-  for(i = 0; i < MAX_UNAME_LEN; i++)
-  {
-    buffer[bufferi] = Uname[i];
-    bufferi++;
-    if(Uname[i + 1] == '\0')
-    {
-      break;
-    }
-  }
+  copyArray(buffer, Title, bufferIdx, MAX_TITLE_LEN);
+  buffer[bufferIdx++] = US;
+  copyArray(buffer, Uname, bufferIdx, MAX_UNAME_LEN);
+  buffer[bufferIdx++] = US;
+  copyArray(buffer, Email, bufferIdx, MAX_EMAIL_LEN);
+  buffer[bufferIdx++] = US;
+  copyArray(buffer, Passwd, bufferIdx, MAX_PASSWORD_LEN);
+  buffer[bufferIdx++] = US;
+  copyArray(buffer, Url, bufferIdx, MAX_URL_LEN);
+  buffer[bufferIdx++] = COMM_END;
 
-  buffer[bufferi] = US;
-  bufferi++;
+  Serial.write(buffer, bufferIdx);
 
-  for(i = 0; i < MAX_EMAIL_LEN; i++)
-  {
-    buffer[bufferi] = Email[i];
-    bufferi++;
-    if(Email[i + 1] == '\0')
-    {
-      break;
-    }
-  }
-
-  buffer[bufferi] = US;
-  bufferi++;
-
-  for(i = 0; i < MAX_PASSWORD_LEN; i++)
-  {
-    buffer[bufferi] = Passwd[i];
-    bufferi++;
-    if(Passwd[i + 1] == '\0')
-    {
-      break;
-    }
-  }
-
-  buffer[bufferi] = US;
-  bufferi++;
-
-  for(i = 0; i < MAX_URL_LEN; i++)
-  {
-    buffer[bufferi] = Url[i];
-    bufferi++;
-    if(Url[i + 1] == '\0')
-    {
-      break;
-    }
-  }
-
-  buffer[bufferi] = COMM_END;
-  bufferi++;
-
-  Serial.write(buffer, bufferi);
-
-  timeoutTimer.reset();
-  timeoutTimer.start();
-  bool timeout = false;
-
-  while((!Serial.readable()) && (!timeout))
-  {
-    if(std::chrono::duration_cast<std::chrono::milliseconds>(timeoutTimer.elapsed_time()).count() >= TIMEOUT_TIME)
-    {
-      timeout = true;
-    }
-  }
-
-  timeoutTimer.stop();
-
-  if(timeout)
+  if(checkForTimeout() == STATUS_TIMEOUT)
   {
     return STATUS_TIMEOUT;
   }
@@ -394,38 +327,40 @@ STATUS KeylessCom::sendAccount(unsigned short int ID, char Title[MAX_TITLE_LEN],
   char serialBuffer;
   Serial.read(&serialBuffer, 1);
 
-  if(serialBuffer == ACK) return STATUS_OK;
-  else if(serialBuffer == NACK) return STATUS_NACK;
-  else return STATUS_INVALID_RESPONSE;
-
+  switch(serialBuffer)
+  {
+    case ACK:
+      return STATUS_OK;
+    case NACK:
+      return STATUS_NACK;
+    default:
+      return STATUS_INVALID_RESPONSE;
+  }
 }
 
 STATUS KeylessCom::typeKeyboard(char Keys[128], uint8_t size)
 {
+  bool endOnNull = false;
   if(size > 128)
   {
     return STATUS_WRONG_PARAMETER;
   }
-  char buffer[MAX_COMM_LEN];
-  uint8_t bufferi = 0;
-
-  buffer[0] = COMM_BEGIN;
-  buffer[1] = CTRL_TYPE_KB;
-
-  bool endOnNull = false;
-
-  if(size == 0)
+  else if(size == 0)
   {
     endOnNull = true;
     size = 128;
   }
 
-  bufferi = 2;
+  char buffer[MAX_COMM_LEN] =
+  {
+    COMM_BEGIN,
+    CTRL_TYPE_KB
+  };
 
+  uint8_t bufferIdx = 2;
   for(uint8_t i = 0; i < size; i++)
   {
-    buffer[bufferi] = Keys[i];
-    bufferi++;
+    buffer[bufferIdx++] = Keys[i];
 
     if(Keys[i + 1] == '\0')
     {
@@ -440,26 +375,14 @@ STATUS KeylessCom::typeKeyboard(char Keys[128], uint8_t size)
     }
   }
 
-  buffer[bufferi] = COMM_END;
-  bufferi++;
-
-  Serial.write(buffer, bufferi);
+  buffer[bufferIdx++] = COMM_END;
+  Serial.write(buffer, bufferIdx);
 
   timeoutTimer.reset();
   timeoutTimer.start();
   bool timeout = false;
 
-  while((!Serial.readable()) && (!timeout))
-  {
-    if(std::chrono::duration_cast<std::chrono::milliseconds>(timeoutTimer.elapsed_time()).count() >= TIMEOUT_TIME)
-    {
-      timeout = true;
-    }
-  }
-
-  timeoutTimer.stop();
-
-  if(timeout)
+  if(checkForTimeout() == STATUS_TIMEOUT)
   {
     return STATUS_TIMEOUT;
   }
@@ -467,9 +390,13 @@ STATUS KeylessCom::typeKeyboard(char Keys[128], uint8_t size)
   char serialBuffer;
   Serial.read(&serialBuffer, 1);
 
-  if(serialBuffer == ACK) return STATUS_OK;
-  else if(serialBuffer == NACK) return STATUS_NACK;
-  else return STATUS_INVALID_RESPONSE;
-
-  return STATUS_OK;
+  switch(serialBuffer)
+  {
+    case ACK:
+      return STATUS_OK;
+    case NACK:
+      return STATUS_NACK;
+    default:
+      return STATUS_INVALID_RESPONSE;
+  }
 }

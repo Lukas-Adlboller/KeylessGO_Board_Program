@@ -78,7 +78,7 @@ void HR2046::readData(uint16_t *x, uint16_t *y, uint16_t *z)
       break;
   }
 
-  printf("[Info] Raw X: %d Y: %d | Point: X: %d Y: %d\n", xraw, yraw, *x, *y);
+  // printf("[Info] Raw X: %d Y: %d | Point: X: %d Y: %d\n", xraw, yraw, *x, *y);
 }
 
 void HR2046::setRotation(uint8_t rot)

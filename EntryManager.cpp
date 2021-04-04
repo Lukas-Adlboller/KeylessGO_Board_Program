@@ -1,9 +1,4 @@
 #include "EntryManager.h"
-#include <algorithm>
-#include <cstdint>
-#include <cstdio>
-#include <functional>
-#include <vector>
 
 uint8_t EntryManager::addressTable[];
 vector<tuple<uint16_t, string>> EntryManager::credentialInfo;
@@ -248,6 +243,13 @@ bool EntryManager::getEntry(uint16_t id, uint8_t *title, uint8_t *usr, uint8_t *
       ENTRY_PASSWORD_SIZE), pwd);
   }
 
+  printf("[DEBUG] %d:", id);
+  for(int i = 0; i < 256; i++)
+  {
+    printf("%c ", tmpPage[i]);
+  }
+  printf("\n");
+
   return true;
 }
 
@@ -423,7 +425,7 @@ bool EntryManager::needsToBeInitialized(void)
 }
 
 /*
-  void savePassword(uint8_t*) hashes password and writes saves it on the memory.
+  void savePassword(uint8_t*) hashes password (32 bytes long) and writes saves it on the memory.
 */
 void EntryManager::savePassword(uint8_t *pwd)
 {

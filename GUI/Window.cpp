@@ -1,6 +1,4 @@
 #include "Window.h"
-#include <chrono>
-#include <cstdint>
 
 Window::Window(ILI9341* displayDrv, HR2046* touchDrv)
 {
@@ -41,12 +39,18 @@ void Window::Load(function<void(Window* sender, ILI9341* displayDrv, HR2046* tou
 
       for(Button button : uiButtons)
       {
-        button.Clicked(x, y);
+        if(button.Clicked(x, y))
+        {
+          break;
+        }
       }
 
       for(CredentialEntry entry : uiEntries)
       {
-        entry.Clicked(x, y);
+        if(entry.Clicked(x, y))
+        {
+          break;
+        }
       }
 
       ThisThread::sleep_for(chrono::milliseconds(200));
