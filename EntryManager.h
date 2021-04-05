@@ -40,6 +40,7 @@ class EntryManager
     bool needsToBeInitialized(void);
     bool comparePassword(uint8_t* pwd);
     uint16_t getEntryCount(void);
+    uint16_t getUniqueId(void);
     vector<tuple<uint16_t, string>> getEntriesTitleInfo(void);
 
     static vector<tuple<uint16_t, string>> credentialInfo;
@@ -51,7 +52,6 @@ class EntryManager
     static uint8_t addressTable[MT25Q_SUBSECTOR_SIZE];
     uint8_t deviceSettings[MT25Q_PAGE_SIZE];
     
-    uint16_t getUniqueId(void);
     uint8_t getStringLength(const char* str, uint8_t maxLength);
     void setEntryCount(uint16_t entryCount);
 };

@@ -114,6 +114,7 @@ bool EntryManager::addEntry(const char* title, const char* usr, const char* emai
     if(foundId == 0xFFFF)
     {
       uint16_t entryId = getUniqueId();
+      usedIds.push_back(entryId);
       addressTable[i * 2] = tmpPage[0] = (entryId & 0xFF00) >> 8;
       addressTable[(i * 2) + 1] = tmpPage[1] = entryId & 0xFF;
       entryAddress = ENTRY_START_ADDRESS + MT25Q_PAGE_SIZE * i;
@@ -370,7 +371,6 @@ uint16_t EntryManager::getUniqueId(void)
     id++;
   }
 
-  usedIds.push_back(id);
   return id;
 }
 

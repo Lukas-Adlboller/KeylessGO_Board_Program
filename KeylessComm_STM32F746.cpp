@@ -1,5 +1,6 @@
 #include "KeylessComm_STM32F746.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstdio>
 
 BufferedSerial KeylessCom::Serial(COM_SERIAL_TX, COM_SERIAL_RX, 9600);
@@ -249,6 +250,45 @@ void KeylessCom::processCommand()
     response = entryManager->editEntry(id, title, usr, email, pwd, url) ? ACK : NACK;
     EntryManager::credentialInfo = entryManager->getEntriesTitleInfo();
     serialComMutex.unlock();
+  }
+  else if(commandBuffer[0] == COMM_GET_UNIQUE_ID)
+  {
+    uint16_t uniqueId = entryManager->getUniqueId();
+    const char dataToSend[5] =
+    {
+      COMM_BEGIN,
+      COMM_SEND_UNIQUE_ID,
+      (char)((uniqueId & 0xFF00) >> 8),
+      (char)(uniqueId & 0xFF),
+      COMM_END
+    };
+
+    serialComMutex.lock();
+    Serial.write(dataToSend, 5);
+    serialComMutex.unlock();
+    return;
+  }
+  else if(commandBuffer[0] == COMM_GET_ALL_ENTRIES)
+  {
+    for(auto entry : entryManager->credentialInfo)
+    {
+      uint8_t title[MAX_TITLE_LEN];
+      uint8_t usr[MAX_UNAME_LEN];
+      uint8_t email[MAX_EMAIL_LEN];
+      uint8_t pwd[MAX_PASSWORD_LEN];
+      uint8_t url[MAX_URL_LEN];
+
+      uint16_t id = get<0>(entry);
+      serialComMutex.lock();
+      bool retVal = entryManager->getEntry(id, title, usr, email, pwd, url);
+      serialComMutex.unlock();
+
+      if(retVal)
+      {
+        sendAccount(id, (char*)title, (char*)usr, (char*)email, (char*)pwd, (char*)url);
+      }
+    }
+    return;
   }
   
   writeResponse(response);

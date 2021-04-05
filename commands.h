@@ -25,21 +25,24 @@ const char ACK         = 0x06;
 const char US          = 0x1F;
 
 //PC Commands
-const char COMM_AUTH_BEGIN   = 0x21;
-const char COMM_AUTH_CODE    = 0x22;
-const char COMM_AUTH_AUTO    = 0x23;
-const char COMM_GET_ACC_NUM	 = 0x24;
-const char COMM_GET_ACC      = 0x25;
-const char COMM_ADD_ACC      = 0x26;
-const char COMM_REM_ACC      = 0x27;
-const char COMM_EDIT_ACC     = 0x28;
+const char COMM_AUTH_BEGIN      = 0x21;
+const char COMM_AUTH_CODE       = 0x22;
+const char COMM_AUTH_AUTO       = 0x23;
+const char COMM_GET_ACC_NUM	    = 0x24;
+const char COMM_GET_ACC         = 0x25;
+const char COMM_ADD_ACC         = 0x26;
+const char COMM_REM_ACC         = 0x27;
+const char COMM_EDIT_ACC        = 0x28;
+const char COMM_GET_UNIQUE_ID   = 0x29;
+const char COMM_GET_ALL_ENTRIES = 0x30;
 
 //PC and Device commands
 const char COMM_DISCONNECT = 0x35;
 
 //Device Commands
-const char COMM_SEND_ACC_NUM  = 0x40;
-const char COMM_SEND_ACC			= 0x41;
+const char COMM_SEND_ACC_NUM    = 0x40;
+const char COMM_SEND_ACC			  = 0x41;
+const char COMM_SEND_UNIQUE_ID  = 0x42;
 
 //Internal Control Commands
 const char CTRL_TYPE_KB = 0x50;

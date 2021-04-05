@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 
-#define BOARD_SOFTWARE_VERSION "KeylessGo 1.0 alpha"
+#define BOARD_SOFTWARE_VERSION "KeylessGo 1.1 alpha"
 
 enum WindowType {CreateLogin, Login, MainWindow, ResetConfirm, LogOff, SendEntry};
 
