@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstdio>
 
-BufferedSerial KeylessCom::Serial(COM_SERIAL_TX, COM_SERIAL_RX, 9600);
+BufferedSerial KeylessCom::Serial(COM_SERIAL_TX, COM_SERIAL_RX, 115200);
 Mutex KeylessCom::serialComMutex;
 
 KeylessCom::KeylessCom(int speed, EntryManager* entryManager)

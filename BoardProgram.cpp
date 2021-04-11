@@ -39,7 +39,7 @@ uint8_t BoardProgram::initialize(void)
 
   // Test Debug Section ----------------------------------------
   //flashMemory.eraseChip();
-  //currentWindow = SendEntry;
+  //currentWindow = MainWindow;
   //currentEntry = 0;
   //masterPassword[0] = '0';
   //masterPassword[1] = '0';

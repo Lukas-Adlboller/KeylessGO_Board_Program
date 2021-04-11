@@ -151,7 +151,7 @@ class BoardProgram
 
     static void scrollUpButton_onClick(GUIElement* sender)
     {
-      scrollIndex = scrollIndex == 0 ? 0 : scrollIndex - 1;
+      scrollIndex = scrollIndex < 5 ? 0 : scrollIndex - 5;
       vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
 
       templateWindow->uiEntries.clear();
@@ -167,9 +167,9 @@ class BoardProgram
 
     static void scrollDownButton_onClick(GUIElement* sender)
     {
+      scrollIndex = scrollIndex > EntryManager::credentialInfo.size() - 5 ? 0 : scrollIndex + 5;
       vector<CredentialEntry> entries = getEntriesToDraw(sender->displayDrv);
-      scrollIndex = scrollIndex == EntryManager::credentialInfo.size() - 1 ? 0 : scrollIndex + 1;
-
+      
       templateWindow->uiEntries.clear();
       sender->displayDrv->fillRectangle(5, 50, 285, 185, LIGHT_GRAY);
 

@@ -243,14 +243,6 @@ bool EntryManager::getEntry(uint16_t id, uint8_t *title, uint8_t *usr, uint8_t *
       getStringLength((char*)&tmpPage[128 + ENTRY_USERNAME_SIZE + ENTRY_EMAIL_SIZE], 
       ENTRY_PASSWORD_SIZE), pwd);
   }
-
-  printf("[DEBUG] %d:", id);
-  for(int i = 0; i < 256; i++)
-  {
-    printf("%c ", tmpPage[i]);
-  }
-  printf("\n");
-
   return true;
 }
 
